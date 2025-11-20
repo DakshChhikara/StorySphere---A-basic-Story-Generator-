@@ -4,6 +4,9 @@ import './App.css';
 import React, { useState, useEffect, useRef } from 'react';
 import { Sparkles, BookOpen, Wand2, Copy, Share2, Save, RefreshCw, Check, Download, MessageSquare } from 'lucide-react';
 
+
+
+
 const StorySphere = () => {
   const [selectedGenres, setSelectedGenres] = useState([]);
   const [storyLength, setStoryLength] = useState(2);
@@ -60,26 +63,28 @@ const StorySphere = () => {
     );
   };
 
-  const generateStoryWithAI = async () => {
-    if (selectedGenres.length === 0) {
-      showToast('Please select at least one genre!', 'error');
-      return;
-    }
+const generateStoryWithAI = async () => {
+  if (selectedGenres.length === 0) {
+    showToast('Please select at least one genre!', 'error');
+    return;
+  }
 
-    setIsGenerating(true);
-    setShowActions(false);
-    setCurrentStory('');
+  setIsGenerating(true);
+  setShowActions(false);
+  setCurrentStory('');
 
-    const lengthMap = {
-      1: { words: 150, tokens: 300 },
-      2: { words: 300, tokens: 500 },
-      3: { words: 500, tokens: 800 }
-    };
+  const lengthMap = {
+    1: { words: 150, tokens: 300 },
+    2: { words: 300, tokens: 500 },
+    3: { words: 500, tokens: 800 }
+  };
 
-    const selectedLength = lengthMap[storyLength];
-    const genreNames = selectedGenres.map(g => genres.find(genre => genre.id === g)?.label).join(', ');
+  const selectedLength = lengthMap[storyLength];
+  const genreNames = selectedGenres
+    .map(g => genres.find(genre => genre.id === g)?.label)
+    .join(', ');
 
-    const systemPrompt = `You are a master storyteller. Create an engaging, original ${tone} story of approximately ${selectedLength.words} words that seamlessly blends elements from these genres: ${genreNames}. 
+  const systemPrompt = `You are a master storyteller. Create an engaging, original ${tone} story of approximately ${selectedLength.words} words that seamlessly blends elements from these genres: ${genreNames}. 
 
 Requirements:
 - Make it vivid and immersive with strong imagery
@@ -89,72 +94,61 @@ Requirements:
 - Make it feel complete despite its length
 - Avoid clichés and predictable storylines`;
 
-    const userPrompt = `Write a captivating ${lengthLabels[storyLength - 1].toLowerCase()} story combining ${genreNames}. Be creative and original!`;
+  const userPrompt = `Write a captivating ${lengthLabels[storyLength - 1].toLowerCase()} story combining ${genreNames}. Be creative and original!`;
 
-    try {
-      const response = await fetch('https://api.anthropic.com/v1/messages', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          model: 'claude-sonnet-4-20250514',
-          max_tokens: selectedLength.tokens,
-          temperature: creativity,
-          messages: [
-            {
-              role: 'user',
-              content: `${systemPrompt}\n\n${userPrompt}`
-            }
-          ]
-        })
+  try {
+    const response = await fetch("http://localhost:4000/generate", {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({
+    messages: [
+      { role: "system", content: systemPrompt },
+      { role: "user", content: userPrompt }
+    ],
+    max_tokens: selectedLength.tokens,
+    temperature: creativity
+  })
+});
+
+
+
+    const data = await response.json();
+    console.log("SERVER RESPONSE:", data);
+    const story = data?.choices?.[0]?.message?.content || "";
+
+    if (!story) throw new Error("No story generated");
+
+    setCurrentStory(story);
+
+    // Stats
+    const wordCount = story.split(/\s+/).length;
+    setStats(prev => {
+      const newGenreCounts = { ...prev.genreCounts };
+      selectedGenres.forEach(g => {
+        newGenreCounts[g] = (newGenreCounts[g] || 0) + 1;
       });
+      return {
+        storiesGenerated: prev.storiesGenerated + 1,
+        totalWords: prev.totalWords + wordCount,
+        genreCounts: newGenreCounts
+      };
+    });
 
-      if (!response.ok) {
-        throw new Error('API request failed');
-      }
+    setShowActions(true);
+    showToast("Story generated successfully! ✨", "success");
 
-      const data = await response.json();
-      const story = data.content
-        .filter(block => block.type === 'text')
-        .map(block => block.text)
-        .join('\n\n');
+    setTimeout(() => {
+      storyOutputRef.current?.scrollIntoView({ behavior: "smooth" });
+    }, 100);
 
-      if (story) {
-        setCurrentStory(story);
-        
-        // Update stats
-        const wordCount = story.split(/\s+/).length;
-        setStats(prev => {
-          const newGenreCounts = { ...prev.genreCounts };
-          selectedGenres.forEach(genre => {
-            newGenreCounts[genre] = (newGenreCounts[genre] || 0) + 1;
-          });
+  } catch (err) {
+    console.error(err);
+    showToast("Failed to generate story — check your Groq API key", "error");
+  } finally {
+    setIsGenerating(false);
+  }
+};
 
-          return {
-            storiesGenerated: prev.storiesGenerated + 1,
-            totalWords: prev.totalWords + wordCount,
-            genreCounts: newGenreCounts
-          };
-        });
-
-        setShowActions(true);
-        showToast('Story generated successfully! ✨', 'success');
-        
-        // Scroll to story
-        setTimeout(() => {
-          storyOutputRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-        }, 100);
-      } else {
-        throw new Error('No story generated');
-      }
-    } catch (error) {
-      console.error('Generation error:', error);
-      showToast('Failed to generate story. Please try again.', 'error');
-    } finally {
-      setIsGenerating(false);
-    }
-  };
 
   const copyToClipboard = async () => {
     try {
@@ -539,3 +533,4 @@ Requirements:
 };
 
 export default StorySphere;
+
