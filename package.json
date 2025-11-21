@@ -1,5 +1,7 @@
 {
   "name": "storysphere",
+  "homepage": "https://dakshchhikara.github.io/StorySphere---A-basic-Story-Generator-/",
+
   "version": "0.1.0",
   "private": true,
   "dependencies": {
